@@ -54,23 +54,36 @@ lets a watch_target exist before a specific listing is nailed down, per the conc
 
 ## How to deploy
 Mac Mini ("Mack") only — no basement server / k3s involvement, no inbound traffic needed.
-Follows the same pattern already proven for KrakenBot/SolanaSniper on that box: build natively
-on Mack (ARM64), run as a plain Docker container with `--restart unless-stopped`.
+Runs as a plain Docker container with `--restart unless-stopped`.
 
 ```bash
-export AWS_ACCESS_KEY_ID=...       # the scoped `dealtracker-app` IAM user's key, NOT your personal dev profile
-export AWS_SECRET_ACCESS_KEY=...
 ./deploy-mack.sh
 ```
-See `deploy-mack.sh` for exactly what it does (tarball source → scp to Mack → `docker build`
-there → `docker run`). See `../HomeServer/CLAUDE.md` for Mack SSH details, network topology,
-and why builds happen on Mack itself rather than cross-compiled elsewhere.
+No env vars needed — credentials come from the `dealtracker-app` AWS CLI profile already
+configured on Mack (see below), mounted read-only into the container.
+
+**Image is built locally, not on Mack**, then shipped over with `docker save | ssh ... docker
+load`. Originally planned to build natively on Mack like KrakenBot/SolanaSniper, but Mack's
+own outbound Docker pulls hit a flaky egress path first observed 2026-07-08 — `docker pull`
+failed with "network is unreachable" against *some* resolved registry/CDN IPs while a plain
+`curl` to the same hostname succeeded (got a different IP from the same DNS round-robin pool).
+Looks like a partial routing issue on Mack's network path, not a Docker/Colima config problem —
+worth a look next time someone's touching the router, but building elsewhere and shipping the
+finished image sidesteps it entirely. Both machines are ARM64, so no cross-compile concerns.
+
+See `deploy-mack.sh` for the exact steps. See `../HomeServer/CLAUDE.md` for Mack SSH details
+and network topology.
 
 **Backup:** `backup-to-s3.sh` runs ON Mack via a nightly crontab entry (not yet installed —
-add with `crontab -e` on Mack once the app is deployed), copying the SQLite file to
-`s3://voluntarytransactions-backups/dealtracker/`. Needs an AWS CLI profile named
-`dealtracker-app` configured on Mack (`aws configure --profile dealtracker-app`), using the
-same scoped IAM user as the app itself.
+add with `crontab -e` on Mack), copying the SQLite file to
+`s3://voluntarytransactions-backups/dealtracker/`. Uses the same `dealtracker-app` AWS CLI
+profile.
+
+**AWS CLI + profile on Mack:** installed via `brew install awscli` (wasn't there before
+2026-07-08). Profile configured with the scoped `dealtracker-app` IAM user's key — created
+once, never re-displayed; if it needs rotating, generate a new access key via
+`aws iam create-access-key --user-name dealtracker-app` and reconfigure the profile on Mack,
+then deactivate/delete the old key.
 
 ## Key constraints & priorities
 - Keep the core schema generic (watch_target/source/listing/observation/trigger_rule/
