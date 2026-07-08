@@ -90,13 +90,16 @@ then deactivate/delete the old key.
   notification_event) — do not special-case Gorilla Mind or any single product in the schema.
 - Local-first: SQLite, no cloud dependency required to run the poll/collect/evaluate loop.
   AWS (SES + S3) is only for notification delivery and backup, not core operation.
-- No secrets in code or git — AWS credentials are always passed as env vars at container
-  runtime (see `deploy-mack.sh`), never hardcoded or committed.
+- No secrets in code or git — the app reads AWS credentials from the `dealtracker-app` CLI
+  profile mounted read-only into the container (see `deploy-mack.sh`), never hardcoded,
+  never passed as a literal secret value in any command or committed anywhere.
 - Public/portfolio sharing is a possible future goal — keep naming and config generic
   (no hardcoded product/personal details in code). ToS/legal review for scraping-based
   collectors (as opposed to the Shopify JSON API used today) is deferred until it's relevant.
 
 ## Useful docs
 - `docs/DealTrackerconcept.md` — original schema design, trigger rule types, seed data intent
+- `docs/data-viewer-plan.md` — planning note for a local, read-only, no-hosting data viewer
+  (not built yet — pick up here next)
 - `../HomeServer/CLAUDE.md` — Mac Mini specs, Tailscale/LAN addresses, Ollama endpoints, deploy patterns
 - `../floci-java-sandbox/CLAUDE.md` — Java/Spring conventions and C#-parallel comment policy this repo follows
