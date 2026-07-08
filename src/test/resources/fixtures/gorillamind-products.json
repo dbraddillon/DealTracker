@@ -1,0 +1,46 @@
+{
+  "products": [
+    {
+      "id": 1001,
+      "title": "Gorilla Mind Energy Drink (12 Pack)",
+      "handle": "gorilla-mind-energy-drink",
+      "variants": [
+        {
+          "id": 2001,
+          "title": "Fruit Punch",
+          "price": "34.99",
+          "compare_at_price": null,
+          "available": true
+        },
+        {
+          "id": 2002,
+          "title": "Rainbow Sherbet",
+          "price": "26.99",
+          "compare_at_price": "34.99",
+          "available": true
+        },
+        {
+          "id": 2003,
+          "title": "Red Gummy Fish",
+          "price": "34.99",
+          "compare_at_price": null,
+          "available": false
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "title": "Gorilla Mode Pre-Workout",
+      "handle": "gorilla-mode-preworkout",
+      "variants": [
+        {
+          "id": 2010,
+          "title": "Default Title",
+          "price": "44.99",
+          "compare_at_price": null,
+          "available": true
+        }
+      ]
+    }
+  ]
+}

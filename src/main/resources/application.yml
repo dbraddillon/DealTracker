@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:${DEALTRACKER_DB_PATH:./data/dealtracker.db}
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite allows only one writer at a time - anything above 1 here just trades an
+      # explicit wait for a "database is locked" SQLITE_BUSY exception instead. Unlike a
+      # server DB (Postgres/SQL Server), pooling concurrency doesn't help SQLite.
+      maximum-pool-size: 1
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+dealtracker:
+  poll:
+    # milliseconds between poll cycles; 4h default. Overridable without a rebuild.
+    fixed-delay-ms: ${DEALTRACKER_POLL_DELAY_MS:14400000}
+  email:
+    from: ${DEALTRACKER_EMAIL_FROM:noreply@voluntarytransactions.com}
+    to: ${DEALTRACKER_EMAIL_TO:d.brad.dillon@gmail.com}
+  aws:
+    region: ${AWS_REGION:us-east-1}
+
+logging:
+  level:
+    dev.basementlab.dealtracker: INFO

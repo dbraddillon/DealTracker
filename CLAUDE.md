@@ -1,39 +1,89 @@
 # DealTracker
 
 ## What this is
-A local-first "watch engine" that monitors retailer listings for price drops / deals and
-emails an alert when a trigger rule fires. Not product-specific — a generic watch_target /
+A local-first "watch engine" that polls retailer listings for price drops / deals and emails
+an alert when a trigger rule fires. Not product-specific — a generic watch_target / source /
 listing / observation / trigger_rule / notification_event model (see
-`docs/DealTrackerconcept.md`), first seeded with Gorilla Mind energy drinks but designed to
-track anything (supplements, tools, electronics, grill gear, etc.) without schema changes.
+`docs/DealTrackerconcept.md`), seeded first with Gorilla Mind energy drinks but designed to
+track anything without schema changes.
 
-**Status: pre-implementation.** No code yet — this repo currently holds the concept doc only.
-Stack, schema DDL, and scraping approach are not yet decided.
+**Status: v1 implemented.** Java 21 + Spring Boot, SQLite (Flyway-migrated), one collector
+(Shopify JSON API), one rule type (`price_below`), SES email notifications, deployed as a
+Docker container on the Mac Mini.
 
-## Intended environment
-Designed to run as a scheduled background job on the Mac Mini (`Mack`), the home LLM host.
-See `../HomeServer/CLAUDE.md` (cloned sibling repo) for full network/infra reference:
-- Mack SSH: `ssh -i ~/.ssh/id_ed25519 Mack@192.168.50.20` (LAN) or `Mack@100.102.185.102` (Tailscale)
-- Mack is double-NAT — no inbound from the internet. Fine for a background poller with no
-  public endpoint; if a UI/dashboard is added later, it needs to go through the basement
-  server (k3s, `basementlab.dev`) reverse-proxied to Mack, same pattern as ComfyUI/ESPHome.
-- Local Ollama available on Mack at `192.168.50.20:11434` if any LLM-assisted parsing
-  (e.g. messy promo text extraction) is wanted later — see HomeServer CLAUDE.md "AI / Local
-  LLM Stack" section for calling conventions.
-- SQLite `.db` files placed under `/opt/<appname>/` on the **basement server** get nightly
-  S3 backup automatically. Mack itself has no equivalent backup cron yet — worth deciding
-  where the DB actually lives before relying on it for anything not easily re-seeded.
+## Stack
+- Java 21, Spring Boot 3.5, Maven (matches conventions already established in `../floci-java-sandbox`)
+- SQLite via `org.xerial:sqlite-jdbc`, schema managed by Flyway (`src/main/resources/db/migration/`)
+- Plain `JdbcTemplate` for persistence — no JPA/Hibernate; closest Spring equivalent to the
+  Dapper-style raw-SQL approach used elsewhere
+- AWS SDK v2 (`sesv2`) for email notifications
+- `java.net.http.HttpClient` for outbound HTTP (no `spring-boot-starter-web` — this app has no
+  inbound HTTP surface, so the embedded servlet container would be dead weight. Note: skipping
+  that starter also means Spring's Jackson auto-configuration never fires — see `config/AppConfig.java`,
+  which declares the `ObjectMapper` bean manually instead)
+
+## Build & run
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21   # match this repo's target, not whatever `java` defaults to
+export PATH="$JAVA_HOME/bin:$PATH"
+
+mvn test              # unit tests only, no network/AWS required
+mvn spring-boot:run   # runs locally against the real gorillamind.com endpoint; SQLite file at ./data/dealtracker.db
+```
+No AWS credentials are needed just to run/poll — only `SesNotificationSender` touches AWS, and
+only when a rule actually fires.
 
 ## Project structure
-- `docs/DealTrackerconcept.md` — Perplexity-authored concept + schema writeup (generic watch
-  engine design, trigger examples, Claude handoff prompt for building it out)
+```
+domain/       plain records: WatchTarget, Source, Listing, Observation, TriggerRule, NotificationEvent
+collector/    Collector interface + CollectorRegistry (dispatch on source.kind) + ShopifyJsonCollector
+rule/         RuleEvaluator (dispatch on trigger_rule.rule_type) — only price_below implemented, rest stubbed
+notify/       NotificationSender + SesNotificationSender + NotificationDedupeService (cooldown_hours logic)
+scheduler/    PollingJob — the @Scheduled entry point tying everything together
+repository/   JdbcTemplate repositories, one per table
+config/       AppConfig (manual ObjectMapper bean), AwsConfig (SesV2Client bean)
+```
+Two extension points are deliberately symmetric: adding a retailer = new `Collector` bean;
+adding a rule type = new case in `RuleEvaluator`. Neither requires touching `PollingJob`.
+
+`ShopifyJsonCollector` doesn't scrape HTML — Shopify stores expose a public, unauthenticated
+`/products.json` (or `/collections/<handle>/products.json`) endpoint by default. The seed
+listing (`V2__seed_gorilla_mind.sql`) has `external_key = NULL` and matches products by
+title against `watch_target.search_terms_json` each poll, rather than pinning to one product ID —
+lets a watch_target exist before a specific listing is nailed down, per the concept doc's intent.
+
+## How to deploy
+Mac Mini ("Mack") only — no basement server / k3s involvement, no inbound traffic needed.
+Follows the same pattern already proven for KrakenBot/SolanaSniper on that box: build natively
+on Mack (ARM64), run as a plain Docker container with `--restart unless-stopped`.
+
+```bash
+export AWS_ACCESS_KEY_ID=...       # the scoped `dealtracker-app` IAM user's key, NOT your personal dev profile
+export AWS_SECRET_ACCESS_KEY=...
+./deploy-mack.sh
+```
+See `deploy-mack.sh` for exactly what it does (tarball source → scp to Mack → `docker build`
+there → `docker run`). See `../HomeServer/CLAUDE.md` for Mack SSH details, network topology,
+and why builds happen on Mack itself rather than cross-compiled elsewhere.
+
+**Backup:** `backup-to-s3.sh` runs ON Mack via a nightly crontab entry (not yet installed —
+add with `crontab -e` on Mack once the app is deployed), copying the SQLite file to
+`s3://voluntarytransactions-backups/dealtracker/`. Needs an AWS CLI profile named
+`dealtracker-app` configured on Mack (`aws configure --profile dealtracker-app`), using the
+same scoped IAM user as the app itself.
 
 ## Key constraints & priorities
 - Keep the core schema generic (watch_target/source/listing/observation/trigger_rule/
   notification_event) — do not special-case Gorilla Mind or any single product in the schema.
-- Local-first: SQLite, no cloud dependency required to run.
-- Retailer scraping is the main open risk (ToS, anti-bot, brittleness) — not yet designed.
+- Local-first: SQLite, no cloud dependency required to run the poll/collect/evaluate loop.
+  AWS (SES + S3) is only for notification delivery and backup, not core operation.
+- No secrets in code or git — AWS credentials are always passed as env vars at container
+  runtime (see `deploy-mack.sh`), never hardcoded or committed.
+- Public/portfolio sharing is a possible future goal — keep naming and config generic
+  (no hardcoded product/personal details in code). ToS/legal review for scraping-based
+  collectors (as opposed to the Shopify JSON API used today) is deferred until it's relevant.
 
 ## Useful docs
-- `docs/DealTrackerconcept.md` — schema design, trigger rule types, seed data intent
+- `docs/DealTrackerconcept.md` — original schema design, trigger rule types, seed data intent
 - `../HomeServer/CLAUDE.md` — Mac Mini specs, Tailscale/LAN addresses, Ollama endpoints, deploy patterns
+- `../floci-java-sandbox/CLAUDE.md` — Java/Spring conventions and C#-parallel comment policy this repo follows

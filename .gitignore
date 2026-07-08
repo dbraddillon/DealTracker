@@ -3,3 +3,5 @@
 *.db
 *.db-journal
 .env
+target/
+data/

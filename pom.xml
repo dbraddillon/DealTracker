@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- spring-boot-starter-parent = like an .NET SDK-style csproj pulling in a shared
+         version baseline; it centrally manages versions for every "spring-boot-starter-*"
+         and common libs (Jackson, JUnit) so child <dependency> entries below don't need
+         explicit <version> tags - analogous to Directory.Packages.props central version mgmt. -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.3</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>dev.basementlab.dealtracker</groupId>
+    <artifactId>dealtracker</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>dealtracker</name>
+    <description>Local-first generic watch/price-tracker engine</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <!-- AWS SDK v2 isn't managed by spring-boot-dependencies, so it's version-pinned
+             via its own BOM below instead of a loose version on each awssdk dependency. -->
+        <awssdk.version>2.46.7</awssdk.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- Core Spring context + @Scheduled support. Deliberately NOT spring-boot-starter-web -
+             this app has no inbound HTTP surface, so pulling in an embedded servlet container
+             (Tomcat) would be dead weight. Outbound HTTP uses the JDK's own java.net.http.HttpClient
+             instead (see ShopifyJsonCollector). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- JdbcTemplate - the closest Spring equivalent to Dapper: hand-written SQL, thin
+             mapping, no ORM/change-tracking. Deliberately not spring-boot-starter-data-jpa. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.49.1.0</version>
+        </dependency>
+
+        <!-- Schema migrations. Flyway has no separate SQLite module (unlike Postgres/Oracle/etc,
+             which moved to flyway-database-* artifacts) - SQLite support ships in flyway-core
+             directly via its generic JDBC dialect. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
+        <!-- Jackson databind for parsing Shopify's products.json. Pulled in transitively by
+             spring-boot-starter-web normally, but since this app skips that starter it needs
+             to be declared explicitly. Version is still managed by spring-boot-starter-parent's
+             Jackson BOM import, so no explicit <version> needed here. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- SES v2 client for outbound email alerts. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sesv2</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>dealtracker</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
