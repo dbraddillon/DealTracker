@@ -33,6 +33,38 @@ mvn spring-boot:run   # runs locally against the real gorillamind.com endpoint; 
 No AWS credentials are needed just to run/poll — only `SesNotificationSender` touches AWS, and
 only when a rule actually fires.
 
+`./refresh-local-data.sh` runs the app for exactly one poll cycle against the real collector
+endpoints, then stops it — for topping up `data/dealtracker.db` before a viewer session without
+leaving the poller running continuously in a terminal tab. Note: the SQLite JDBC driver won't
+create `data/` on its own — the script `mkdir -p`s it, but a bare `mvn spring-boot:run` on a
+fresh checkout needs that directory created first too.
+
+## Local data viewer (`viewer/`)
+A read-only React + TypeScript app for eyeballing price history — separate from the Java app,
+never touches it, just reads the same SQLite file. Single dev server, no build/deploy step:
+
+```bash
+cd viewer
+npm install   # first time only
+npm run dev   # opens on http://localhost:5173
+```
+Rider, VS Code, and Visual Studio all auto-detect `npm` scripts in `package.json`, so this is
+also a one-click "Run" target from any of them — no per-IDE launch config needed.
+
+Reads `../data/dealtracker.db` by default (same file `mvn spring-boot:run` writes to locally).
+Point it at a copy pulled down from Mack instead with `DEALTRACKER_DB_PATH=/path/to/copy npm run
+dev`. Uses Node's built-in `node:sqlite` (`DatabaseSync`, stable since Node 22.5) opened
+`readOnly: true` — deliberately not `better-sqlite3`, which needs a native addon compiled
+against whatever Node version is on PATH and failed to build against Node 26 during setup.
+`node:sqlite` ships with Node itself, so there's nothing to compile.
+
+Frontend (`viewer/src/`) fetches JSON from a tiny API (`viewer/server/api.ts`) that Vite serves
+from inside the same dev-server process via a middleware plugin (`viewer/vite.config.ts`) — one
+process, one `npm run dev`, no CORS. Shows: per-watch-target current price/status per
+variant (with an "under threshold" badge), a price-history line chart per variant, recent
+`notification_event` rows, and a raw `observation` table browse (for sanity-checking a new
+collector's title-matching).
+
 ## Project structure
 ```
 domain/       plain records: WatchTarget, Source, Listing, Observation, TriggerRule, NotificationEvent
@@ -99,7 +131,7 @@ then deactivate/delete the old key.
 
 ## Useful docs
 - `docs/DealTrackerconcept.md` — original schema design, trigger rule types, seed data intent
-- `docs/data-viewer-plan.md` — planning note for a local, read-only, no-hosting data viewer
-  (not built yet — pick up here next)
+- `docs/data-viewer-plan.md` — planning note for the local, read-only, no-hosting data viewer
+  now built at `viewer/` (see above); doc kept for the original alternatives/tradeoffs considered
 - `../HomeServer/CLAUDE.md` — Mac Mini specs, Tailscale/LAN addresses, Ollama endpoints, deploy patterns
 - `../floci-java-sandbox/CLAUDE.md` — Java/Spring conventions and C#-parallel comment policy this repo follows

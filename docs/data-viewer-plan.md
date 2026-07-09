@@ -1,7 +1,14 @@
 # Data viewer — planning note
 
-Not built yet. Captured here 2026-07-08 so we can pick this up (next session, maybe tomorrow)
-without re-deriving it.
+**Status: built 2026-07-09**, as a React/TypeScript app in `viewer/` — see `viewer/README`-style
+notes in `../CLAUDE.md`. Built differently than the original plan below: Brad asked specifically
+for a React/TS app launchable with a single IDE "Run" click (Rider/VS Code/Visual Studio all
+auto-detect `npm` scripts in `package.json`), not the static sql.js file. Kept as history below
+since the "no hosting, read-only, decoupled from the running app" constraints still apply and
+explain some of the current design (e.g. why it reads the SQLite file directly instead of
+adding a REST API to the Java app).
+
+Original planning note, captured 2026-07-08:
 
 ## Goal
 A simple, local, **read-only** visual way to look at what DealTracker has collected — no
