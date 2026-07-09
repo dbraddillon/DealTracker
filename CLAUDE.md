@@ -117,6 +117,27 @@ once, never re-displayed; if it needs rotating, generate a new access key via
 `aws iam create-access-key --user-name dealtracker-app` and reconfigure the profile on Mack,
 then deactivate/delete the old key.
 
+## Running this yourself (not on Mack)
+The app and schema are generic by design (see below) and need zero code changes to run
+elsewhere. Everything Mack-specific lives in the deploy/backup scripts, and it's all either
+already an overridable env var or a one-line edit:
+
+- **Just running/polling locally** — no AWS, no Docker, no changes needed at all:
+  `mvn spring-boot:run` (see "Build & run" above). Only `SesNotificationSender` touches AWS,
+  and only when a rule fires.
+- **`deploy-mack.sh`** — `MACK_HOST` and the email envs
+  (`DEALTRACKER_EMAIL_FROM`/`DEALTRACKER_EMAIL_TO`) already read from the environment with
+  Mack's values as defaults; `DATA_DIR` (`/Users/mack/dealtracker/data`) is hardcoded and
+  would need a manual edit for a different host/path.
+- **`backup-to-s3.sh`** — `DEALTRACKER_DB_PATH` already overrides the SQLite file location;
+  `BUCKET` (`s3://voluntarytransactions-backups/dealtracker`) is hardcoded and would need a
+  manual edit to point at your own bucket.
+- **Email notifications** — need your own SES verified sender identity (or a sandbox-mode
+  destination) and an IAM user/profile scoped to `sesv2:SendEmail`, in place of the
+  `dealtracker-app` profile described below.
+- **`viewer/`** — already fully portable: `DEALTRACKER_DB_PATH` points it at any SQLite file,
+  local or copied down from wherever you deploy.
+
 ## Key constraints & priorities
 - Keep the core schema generic (watch_target/source/listing/observation/trigger_rule/
   notification_event) — do not special-case Gorilla Mind or any single product in the schema.
