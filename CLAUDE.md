@@ -11,8 +11,16 @@ track anything without schema changes.
 (Shopify JSON API), one rule type (`price_below`), SES email notifications, deployed as a
 Docker container on the Mac Mini.
 
+## Cross-Machine Sync (read this first)
+This repo is worked on from multiple machines. Claude's memory system is per-machine and does
+not sync between them. Treat this file and `docs/` as the shared brain instead — durable
+architecture decisions, gotchas, and ops patterns belong here, not in machine-local memory.
+
 ## Stack
-- Java 21, Spring Boot 3.5, Maven (matches conventions already established in `../floci-java-sandbox`)
+- Java 21, Spring Boot 3.5, Maven (matches conventions already established in `../floci-java-sandbox`).
+  Deliberately chosen over the operationally simplest option (a small Go daemon would've been
+  slicker for a single-purpose poller) — this project is intentional Java/Spring practice reps,
+  not just a means to an end.
 - SQLite via `org.xerial:sqlite-jdbc`, schema managed by Flyway (`src/main/resources/db/migration/`)
 - Plain `JdbcTemplate` for persistence — no JPA/Hibernate; closest Spring equivalent to the
   Dapper-style raw-SQL approach used elsewhere
@@ -116,6 +124,14 @@ profile.
 once, never re-displayed; if it needs rotating, generate a new access key via
 `aws iam create-access-key --user-name dealtracker-app` and reconfigure the profile on Mack,
 then deactivate/delete the old key.
+
+**Convention: two separate AWS identities, don't blend them.** `dealtracker-app` (above) is
+app-runtime-only, scoped to exactly `sesv2:SendEmail` on the verified sending identity and
+`s3:PutObject` on the backup prefix — it's a project-named profile because it's a project-scoped
+credential. Brad's own CLI access for poking around/checking cloud state, on any machine, uses
+his general-purpose **default** AWS CLI profile (`aws configure`, no `--profile` flag) — not a
+project-named dev profile. If you're setting up AWS CLI access for a human on a new machine,
+default to the `default` profile unless one's already configured for something else.
 
 ## Running this yourself (not on Mack)
 The app and schema are generic by design (see below) and need zero code changes to run
