@@ -114,10 +114,10 @@ finished image sidesteps it entirely. Both machines are ARM64, so no cross-compi
 See `deploy-mack.sh` for the exact steps. See `../HomeServer/CLAUDE.md` for Mack SSH details
 and network topology.
 
-**Backup:** `backup-to-s3.sh` runs ON Mack via a nightly crontab entry (not yet installed —
-add with `crontab -e` on Mack), copying the SQLite file to
-`s3://voluntarytransactions-backups/dealtracker/`. Uses the same `dealtracker-app` AWS CLI
-profile.
+**Backup:** `backup-to-s3.sh` runs ON Mack via a nightly crontab entry (`0 2 * * *`, installed —
+confirmed running nightly since deploy via `crontab -l` and `~/dealtracker/backup.log` on Mack),
+copying the SQLite file to `s3://voluntarytransactions-backups/dealtracker/`. Uses the same
+`dealtracker-app` AWS CLI profile.
 
 **AWS CLI + profile on Mack:** installed via `brew install awscli` (wasn't there before
 2026-07-08). Profile configured with the scoped `dealtracker-app` IAM user's key — created
